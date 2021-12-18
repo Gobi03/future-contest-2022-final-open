@@ -194,8 +194,8 @@ impl Robot {
             match self.direction {
                 Direction::Left => next.access_matrix(&input.h).clone(),
                 Direction::Right => self.pos.access_matrix(&input.h).clone(),
-                Direction::Up => next.access_matrix(&input.h).clone(),
-                Direction::Down => self.pos.access_matrix(&input.h).clone(),
+                Direction::Up => next.access_matrix(&input.v).clone(),
+                Direction::Down => self.pos.access_matrix(&input.v).clone(),
             }
         } else {
             false
@@ -217,7 +217,7 @@ impl Robot {
 #[fastout]
 fn main() {
     let system_time = SystemTime::now();
-    let mut _rng = thread_rng();
+    let mut rng = thread_rng();
 
     input! {
         sy: usize,
@@ -234,7 +234,11 @@ fn main() {
         let command = if robot.can_progress(&input) {
             Command::F
         } else {
-            Command::Turnl
+            if rng.gen_bool(0.5) {
+                Command::Turnl
+            } else {
+                Command::Turnr
+            }
         };
 
         robot.do_command(&command);
