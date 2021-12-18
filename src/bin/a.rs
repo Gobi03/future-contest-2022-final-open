@@ -138,6 +138,42 @@ impl Direction {
             Self::Down => Coord::new((0, 1)),
         }
     }
+
+    fn rotate_right(&self) -> Self {
+        match *self {
+            Self::Left => Self::Up,
+            Self::Right => Self::Down,
+            Self::Up => Self::Right,
+            Self::Down => Self::Left,
+        }
+    }
+    fn rotate_left(&self) -> Self {
+        match *self {
+            Self::Left => Self::Down,
+            Self::Right => Self::Up,
+            Self::Up => Self::Left,
+            Self::Down => Self::Right,
+        }
+    }
+}
+
+enum Command {
+    TurnR,
+    TurnL,
+    Turnr,
+    Turnl,
+    F,
+}
+impl Command {
+    fn to_char(&self) -> char {
+        match *self {
+            Self::TurnR => 'R',
+            Self::TurnL => 'L',
+            Self::Turnr => 'r',
+            Self::Turnl => 'l',
+            Self::F => 'F',
+        }
+    }
 }
 
 struct Robot {
@@ -149,6 +185,31 @@ impl Robot {
         Self {
             pos: input.start.clone(),
             direction: Direction::Up,
+        }
+    }
+
+    fn can_progress(&self, input: &Input) -> bool {
+        let next = self.pos.plus(&self.direction.to_delta());
+        if next.in_field() {
+            match self.direction {
+                Direction::Left => next.access_matrix(&input.h).clone(),
+                Direction::Right => self.pos.access_matrix(&input.h).clone(),
+                Direction::Up => next.access_matrix(&input.h).clone(),
+                Direction::Down => self.pos.access_matrix(&input.h).clone(),
+            }
+        } else {
+            false
+        }
+    }
+
+    // valid な命令が来る前提
+    fn do_command(&mut self, command: &Command) {
+        match command {
+            Command::TurnR => self.direction = self.direction.rotate_right(),
+            Command::TurnL => self.direction = self.direction.rotate_left(),
+            Command::Turnr => self.direction = self.direction.rotate_right(),
+            Command::Turnl => self.direction = self.direction.rotate_left(),
+            Command::F => self.pos = self.pos.plus(&self.direction.to_delta()),
         }
     }
 }
@@ -166,10 +227,21 @@ fn main() {
     }
 
     let input = Input::new(sy, sx, h, v);
-    let robot = Robot::new(&input);
+    let mut robot = Robot::new(&input);
 
-    let ans = "";
-    println!("{}", ans);
+    let mut ans = vec![];
+    for _ in 0..10_000 {
+        let command = if robot.can_progress(&input) {
+            Command::F
+        } else {
+            Command::Turnl
+        };
+
+        robot.do_command(&command);
+        ans.push(command.to_char());
+    }
+
+    println!("{}", ans.iter().map(|c| c.to_string()).collect::<String>());
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
 }
