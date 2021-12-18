@@ -192,10 +192,10 @@ impl Robot {
         let next = self.pos.plus(&self.direction.to_delta());
         if next.in_field() {
             match self.direction {
-                Direction::Left => next.access_matrix(&input.h).clone(),
-                Direction::Right => self.pos.access_matrix(&input.h).clone(),
-                Direction::Up => next.access_matrix(&input.v).clone(),
-                Direction::Down => self.pos.access_matrix(&input.v).clone(),
+                Direction::Left => !next.access_matrix(&input.h).clone(),
+                Direction::Right => !self.pos.access_matrix(&input.h).clone(),
+                Direction::Up => !next.access_matrix(&input.v).clone(),
+                Direction::Down => !self.pos.access_matrix(&input.v).clone(),
             }
         } else {
             false
