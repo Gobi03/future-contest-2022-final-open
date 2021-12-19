@@ -123,6 +123,45 @@ impl Input {
     }
 }
 
+struct State {
+    robot: Robot,
+    gone: Vec<Vec<bool>>,
+    rest_num: usize,
+}
+impl State {
+    fn new(input: &Input) -> Self {
+        let mut gone = vec![vec![false; N]; N];
+        input.start.set_matrix(&mut gone, true);
+        Self {
+            robot: Robot::new(&input),
+            gone,
+            rest_num: N * N - 1,
+        }
+    }
+
+    fn do_command(&mut self, command: &Command, input: &Input) {
+        match command {
+            Command::F => {
+                self.robot.do_command(command, input);
+                if !self.robot.pos.access_matrix(&self.gone) {
+                    self.rest_num -= 1;
+                    self.robot.pos.set_matrix(&mut self.gone, true);
+                }
+            }
+            Command::Iter(n, coms) => {
+                for _ in 0..*n {
+                    for com in coms {
+                        self.do_command(com, input)
+                    }
+                }
+            }
+            _ => {
+                self.robot.do_command(command, input);
+            }
+        }
+    }
+}
+
 enum Direction {
     Left,
     Right,
@@ -163,6 +202,7 @@ enum Command {
     Turnr,
     Turnl,
     F,
+    Iter(usize, Vec<Command>),
 }
 impl Command {
     fn to_char(&self) -> char {
@@ -172,6 +212,7 @@ impl Command {
             Self::Turnr => 'r',
             Self::Turnl => 'l',
             Self::F => 'F',
+            Self::Iter(_, _) => todo!(),
         }
     }
 }
@@ -203,13 +244,28 @@ impl Robot {
     }
 
     // valid な命令が来る前提
-    fn do_command(&mut self, command: &Command) {
+    fn do_command(&mut self, command: &Command, input: &Input) {
         match command {
             Command::TurnR => self.direction = self.direction.rotate_right(),
             Command::TurnL => self.direction = self.direction.rotate_left(),
-            Command::Turnr => self.direction = self.direction.rotate_right(),
-            Command::Turnl => self.direction = self.direction.rotate_left(),
-            Command::F => self.pos = self.pos.plus(&self.direction.to_delta()),
+            Command::Turnr => {
+                if !self.can_progress(&input) {
+                    self.direction = self.direction.rotate_right()
+                }
+            }
+            Command::Turnl => {
+                if !self.can_progress(&input) {
+                    self.direction = self.direction.rotate_left()
+                }
+            }
+            Command::F => {
+                if !self.can_progress(&input) {
+                    panic!("Command F toward wall.");
+                } else {
+                    self.pos = self.pos.plus(&self.direction.to_delta())
+                }
+            }
+            Command::Iter(_, _) => unreachable!(),
         }
     }
 }
@@ -217,7 +273,7 @@ impl Robot {
 #[fastout]
 fn main() {
     let system_time = SystemTime::now();
-    let mut rng = thread_rng();
+    let mut _rng = thread_rng();
 
     input! {
         sy: usize,
@@ -227,26 +283,23 @@ fn main() {
     }
 
     let input = Input::new(sy, sx, h, v);
-    let mut robot = Robot::new(&input);
+    let mut st = State::new(&input);
 
-    let mut ans = vec![];
-    for _ in 0..10_000 {
-        let command = if robot.can_progress(&input) {
-            Command::F
-        } else {
-            if rng.gen_bool(0.5) {
-                Command::Turnl
-            } else {
-                Command::Turnr
-            }
-        };
-
-        robot.do_command(&command);
-        ans.push(command.to_char());
-    }
-
-    ans.iter().map(|c| c.to_string()).collect::<String>();
-    println!("{}", "200(2(LrrF)3(RllF))");
+    let com = {
+        use Command::*;
+        Iter(
+            200,
+            vec![
+                Iter(4, vec![TurnL, Turnr, Turnr, F]),
+                Iter(3, vec![TurnR, Turnl, Turnl, F]),
+            ],
+        )
+    };
+    st.do_command(&com, &input);
+    eprintln!("rest_num: {}", st.rest_num);
+    eprintln!("{:?}", st.robot.pos);
+    eprintln!("{:?}", st.gone);
+    println!("{}", "200(4(LrrF)3(RllF))");
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
 }
