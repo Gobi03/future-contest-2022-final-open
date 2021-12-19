@@ -21,6 +21,7 @@ use std::time::SystemTime;
 const MOD: usize = 1e9 as usize + 7;
 
 const N: usize = 20;
+const MAX_COMMAND_NUM: usize = 5_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Coord {
@@ -126,7 +127,8 @@ impl Input {
 struct State {
     robot: Robot,
     gone: Vec<Vec<bool>>,
-    rest_num: usize,
+    rest_grid_num: usize,
+    command_cnt: usize,
 }
 impl State {
     fn new(input: &Input) -> Self {
@@ -135,28 +137,33 @@ impl State {
         Self {
             robot: Robot::new(&input),
             gone,
-            rest_num: N * N - 1,
+            rest_grid_num: N * N - 1,
+            command_cnt: 0,
         }
     }
 
     fn do_command(&mut self, command: &Command, input: &Input) {
-        match command {
-            Command::F => {
-                self.robot.do_command(command, input);
-                if !self.robot.pos.access_matrix(&self.gone) {
-                    self.rest_num -= 1;
-                    self.robot.pos.set_matrix(&mut self.gone, true);
-                }
-            }
-            Command::Iter(n, coms) => {
-                for _ in 0..*n {
-                    for com in coms {
-                        self.do_command(com, input)
+        if self.command_cnt < MAX_COMMAND_NUM {
+            match command {
+                Command::F => {
+                    self.robot.do_command(command, input);
+                    self.command_cnt += 1;
+                    if !self.robot.pos.access_matrix(&self.gone) {
+                        self.rest_grid_num -= 1;
+                        self.robot.pos.set_matrix(&mut self.gone, true);
                     }
                 }
-            }
-            _ => {
-                self.robot.do_command(command, input);
+                Command::Iter(n, coms) => {
+                    for _ in 0..*n {
+                        for com in coms {
+                            self.do_command(com, input)
+                        }
+                    }
+                }
+                _ => {
+                    self.command_cnt += 1;
+                    self.robot.do_command(command, input);
+                }
             }
         }
     }
@@ -296,9 +303,8 @@ fn main() {
         )
     };
     st.do_command(&com, &input);
-    eprintln!("rest_num: {}", st.rest_num);
+    eprintln!("rest_num: {}", st.rest_grid_num);
     eprintln!("{:?}", st.robot.pos);
-    eprintln!("{:?}", st.gone);
     println!("{}", "200(4(LrrF)3(RllF))");
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
