@@ -212,14 +212,23 @@ enum Command {
     Iter(usize, Vec<Command>),
 }
 impl Command {
-    fn to_char(&self) -> char {
-        match *self {
-            Self::TurnR => 'R',
-            Self::TurnL => 'L',
-            Self::Turnr => 'r',
-            Self::Turnl => 'l',
-            Self::F => 'F',
-            Self::Iter(_, _) => todo!(),
+    fn to_string(&self) -> String {
+        match self {
+            Self::TurnR => "R".to_string(),
+            Self::TurnL => "L".to_string(),
+            Self::Turnr => "r".to_string(),
+            Self::Turnl => "l".to_string(),
+            Self::F => "F".to_string(),
+            Self::Iter(n, v) => {
+                if *n <= 1 || v.len() == 0 {
+                    panic!()
+                } else if v.len() == 1 {
+                    v[0].to_string()
+                } else {
+                    let str = v.iter().map(|com| com.to_string()).collect::<String>();
+                    format!("{}({})", n, str)
+                }
+            }
         }
     }
 }
@@ -305,7 +314,7 @@ fn main() {
     st.do_command(&com, &input);
     eprintln!("rest_num: {}", st.rest_grid_num);
     eprintln!("{:?}", st.robot.pos);
-    println!("{}", "200(4(LrrF)3(RllF))");
+    println!("{}", com.to_string());
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
 }
