@@ -256,6 +256,7 @@ impl Command {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Robot {
     pos: Coord,
     direction: Direction,
@@ -343,39 +344,65 @@ fn main() {
     // 残グリッドを割り出して
     let not_gone_grids = st.get_not_gone_grids();
 
-    let mut now_pos = st.robot.pos.clone();
-    let mut now_dir = st.robot.direction.clone();
+    let mut now_robot = st.robot.clone();
     for goal in not_gone_grids {
         // エッジを引いて
         let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
-        deque.push_front((now_pos.clone(), now_dir.clone(), vec![]));
+        deque.push_front((now_robot.clone(), vec![]));
         let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
-        dp[st.robot.pos.y as usize][st.robot.pos.x as usize][st.robot.direction.to_num()] = true;
+        dp[now_robot.pos.y as usize][now_robot.pos.x as usize][now_robot.direction.to_num()] = true;
         let ans;
         while !deque.is_empty() {
-            let (pos, dir, history) = deque.pop_front().unwrap();
-            if pos == goal {
+            use Command::*;
+
+            let (robot, history) = deque.pop_front().unwrap();
+            if robot.pos == goal {
                 ans = history;
-                now_pos = pos.clone();
-                now_dir = dir.clone();
+                now_robot = robot.clone();
                 break;
             } else {
                 {
-                    let next_dir = dir.rotate_left();
-                    if !pos.access_matrix(&dp)[next_dir.to_num()] {
-                        dp[pos.y as usize][pos.x as usize][next_dir.to_num()] = true;
+                    let mut robot = robot.clone();
+                    let command = Command::TurnL;
+                    robot.do_command(&command, &input);
+                    if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+                        dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] =
+                            true;
                         let mut next_history = history.clone();
-                        next_history.push(Command::TurnL);
-                        deque.push_back((pos.clone(), next_dir, next_history))
+                        next_history.push(command);
+                        deque.push_back((robot, next_history))
                     }
                 }
                 {
-                    let next_dir = dir.rotate_right();
-                    if !pos.access_matrix(&dp)[next_dir.to_num()] {
-                        dp[pos.y as usize][pos.x as usize][next_dir.to_num()] = true;
+                    let mut robot = robot.clone();
+                    let command = Command::TurnR;
+                    robot.do_command(&command, &input);
+                    if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+                        dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] =
+                            true;
                         let mut next_history = history.clone();
-                        next_history.push(Command::TurnL);
-                        deque.push_back((pos.clone(), next_dir, next_history))
+                        next_history.push(command);
+                        deque.push_back((robot, next_history))
+                    }
+                }
+
+                // 前進
+                if robot.can_progress(&input) {
+                    let mut robot = robot.clone();
+                    let mut next_history = history.clone();
+                    match history[history.len() - 1] {
+                        Command::F => {
+                            next_history[history.len() - 1] = Command::Iter(2, vec![F]);
+                            deque.push_front((robot, next_history));
+                        }
+                        Command::Iter(n, vec![F]) => {
+                            next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
+                            deque.push_front((robot, next_history));
+                        }
+                        _ => {
+                            next_history.push(Command::F);
+                            deque.push_back((robot, next_history));
+                        }
                     }
                 }
             }
