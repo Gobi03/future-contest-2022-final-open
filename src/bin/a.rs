@@ -167,8 +167,21 @@ impl State {
             }
         }
     }
+
+    fn get_not_gone_grids(&self) -> Vec<Coord> {
+        let mut res = vec![];
+        for y in 0..N {
+            for x in 0..N {
+                if !self.gone[y][x] {
+                    res.push(Coord::from_usize_pair((x, y)));
+                }
+            }
+        }
+        res
+    }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Direction {
     Left,
     Right,
@@ -182,6 +195,15 @@ impl Direction {
             Self::Right => Coord::new((1, 0)),
             Self::Up => Coord::new((0, -1)),
             Self::Down => Coord::new((0, 1)),
+        }
+    }
+
+    fn to_num(&self) -> usize {
+        match *self {
+            Self::Up => 0,
+            Self::Left => 1,
+            Self::Down => 2,
+            Self::Right => 3,
         }
     }
 
@@ -203,6 +225,7 @@ impl Direction {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Command {
     TurnR,
     TurnL,
@@ -304,7 +327,7 @@ fn main() {
     let com = {
         use Command::*;
         Iter(
-            200,
+            150,
             vec![
                 Iter(4, vec![TurnL, Turnr, Turnr, F]),
                 Iter(3, vec![TurnR, Turnl, Turnl, F]),
@@ -312,8 +335,57 @@ fn main() {
         )
     };
     st.do_command(&com, &input);
+
     eprintln!("rest_num: {}", st.rest_grid_num);
     eprintln!("{:?}", st.robot.pos);
+
+    // TSPフェーズ
+    // 残グリッドを割り出して
+    let not_gone_grids = st.get_not_gone_grids();
+
+    let mut now_pos = st.robot.pos.clone();
+    let mut now_dir = st.robot.direction.clone();
+    for goal in not_gone_grids {
+        // エッジを引いて
+        let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
+        deque.push_front((now_pos.clone(), now_dir.clone(), vec![]));
+        let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
+        dp[st.robot.pos.y as usize][st.robot.pos.x as usize][st.robot.direction.to_num()] = true;
+        let ans;
+        while !deque.is_empty() {
+            let (pos, dir, history) = deque.pop_front().unwrap();
+            if pos == goal {
+                ans = history;
+                now_pos = pos.clone();
+                now_dir = dir.clone();
+                break;
+            } else {
+                {
+                    let next_dir = dir.rotate_left();
+                    if !pos.access_matrix(&dp)[next_dir.to_num()] {
+                        dp[pos.y as usize][pos.x as usize][next_dir.to_num()] = true;
+                        let mut next_history = history.clone();
+                        next_history.push(Command::TurnL);
+                        deque.push_back((pos.clone(), next_dir, next_history))
+                    }
+                }
+                {
+                    let next_dir = dir.rotate_right();
+                    if !pos.access_matrix(&dp)[next_dir.to_num()] {
+                        dp[pos.y as usize][pos.x as usize][next_dir.to_num()] = true;
+                        let mut next_history = history.clone();
+                        next_history.push(Command::TurnL);
+                        deque.push_back((pos.clone(), next_dir, next_history))
+                    }
+                }
+            }
+        }
+
+        // TODO: ans を回答に追加
+    }
+
+    // TODO: TSP (01BFS)
+
     println!("{}", com.to_string());
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
