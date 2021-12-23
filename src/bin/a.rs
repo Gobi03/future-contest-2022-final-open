@@ -246,7 +246,7 @@ impl Command {
                 if *n <= 1 || v.len() == 0 {
                     panic!()
                 } else if v.len() == 1 {
-                    v[0].to_string()
+                    format!("{}{}", n, v[0].to_string())
                 } else {
                     let str = v.iter().map(|com| com.to_string()).collect::<String>();
                     format!("{}({})", n, str)
@@ -357,6 +357,8 @@ fn main() {
 
             let (robot, history) = deque.pop_front().unwrap();
             if robot.pos == goal {
+                eprintln!("{:?}", now_robot.pos);
+                eprintln!("{:?}", history);
                 commands.extend(history.into_iter());
                 now_robot = robot.clone();
                 break;
