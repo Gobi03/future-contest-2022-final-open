@@ -341,6 +341,7 @@ fn main() {
     eprintln!("{:?}", st.robot.pos);
 
     // TSPフェーズ
+    let mut commands = vec![com];
     // 残グリッドを割り出して
     let not_gone_grids = st.get_not_gone_grids();
 
@@ -351,13 +352,12 @@ fn main() {
         deque.push_front((now_robot.clone(), vec![]));
         let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
         dp[now_robot.pos.y as usize][now_robot.pos.x as usize][now_robot.direction.to_num()] = true;
-        let ans;
         while !deque.is_empty() {
             use Command::*;
 
             let (robot, history) = deque.pop_front().unwrap();
             if robot.pos == goal {
-                ans = history;
+                commands.extend(history.into_iter());
                 now_robot = robot.clone();
                 break;
             } else {
@@ -390,30 +390,40 @@ fn main() {
                 if robot.can_progress(&input) {
                     let mut robot = robot.clone();
                     let mut next_history = history.clone();
-                    match history[history.len() - 1] {
-                        Command::F => {
-                            next_history[history.len() - 1] = Command::Iter(2, vec![F]);
-                            deque.push_front((robot, next_history));
-                        }
-                        Command::Iter(n, vec![F]) => {
-                            next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
-                            deque.push_front((robot, next_history));
-                        }
-                        _ => {
-                            next_history.push(Command::F);
-                            deque.push_back((robot, next_history));
+                    robot.do_command(&F, &input);
+                    if history.len() == 0 {
+                        next_history.push(Command::F);
+                        deque.push_back((robot, next_history));
+                    } else {
+                        match &history[history.len() - 1] {
+                            Command::F => {
+                                next_history[history.len() - 1] = Command::Iter(2, vec![F]);
+                                deque.push_back((robot, next_history));
+                            }
+                            Command::Iter(n, v) if *v == vec![F] => {
+                                next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
+                                deque.push_front((robot, next_history));
+                            }
+                            _ => {
+                                next_history.push(Command::F);
+                                deque.push_back((robot, next_history));
+                            }
                         }
                     }
                 }
             }
         }
-
-        // TODO: ans を回答に追加
     }
 
     // TODO: TSP (01BFS)
 
-    println!("{}", com.to_string());
+    println!(
+        "{}",
+        commands
+            .iter()
+            .map(|com| com.to_string())
+            .collect::<String>()
+    );
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
 }
