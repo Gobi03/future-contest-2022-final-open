@@ -342,11 +342,22 @@ fn main() {
 
     // TSPフェーズ
     let mut commands = vec![com];
-    // 残グリッドを割り出して
-    let not_gone_grids = st.get_not_gone_grids();
 
     let mut now_robot = st.robot.clone();
-    for goal in not_gone_grids {
+    loop {
+        let mut goal = Coord::new((-1, -1));
+        let mut tmp_dist = std::isize::MAX;
+        let not_gone_grids = st.get_not_gone_grids();
+        if not_gone_grids.len() == 0 {
+            break;
+        }
+        for pos in not_gone_grids {
+            let dist = pos.distance(&now_robot.pos);
+            if dist < tmp_dist {
+                tmp_dist = dist;
+                goal = pos;
+            }
+        }
         // エッジを引いて
         let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
         deque.push_front((now_robot.clone(), vec![]));
@@ -357,8 +368,9 @@ fn main() {
 
             let (robot, history) = deque.pop_front().unwrap();
             if robot.pos == goal {
-                eprintln!("{:?}", now_robot.pos);
-                eprintln!("{:?}", history);
+                for com in &history {
+                    st.do_command(com, &input);
+                }
                 commands.extend(history.into_iter());
                 now_robot = robot.clone();
                 break;
@@ -417,7 +429,7 @@ fn main() {
         }
     }
 
-    // TODO: TSP (01BFS)
+    eprintln!("rest_num: {}", st.rest_grid_num);
 
     println!(
         "{}",
