@@ -435,42 +435,7 @@ fn main() {
     eprintln!("rest_num: {}", st.rest_grid_num);
 
     // 圧縮
-    {
-        use Command::*;
-
-        let mut i = 0;
-        while i < commands.len() - 1 {
-            match &commands[i] {
-                F => {
-                    match &commands[i + 1] {
-                        F => {
-                            commands[i] = Iter(2, vec![F]);
-                            commands.remove(i + 1);
-                        }
-                        Iter(n, v) if *v == vec![F] => {
-                            commands[i] = Iter(n + 1, vec![F]);
-                            commands.remove(i + 1);
-                        }
-                        _ => i += 1,
-                    };
-                }
-                Iter(n, v) if *v == vec![F] => {
-                    match &commands[i + 1] {
-                        F => {
-                            commands[i] = Iter(n + 1, vec![F]);
-                            commands.remove(i + 1);
-                        }
-                        Iter(m, v2) if *v2 == vec![F] => {
-                            commands[i] = Iter(n + m, vec![F]);
-                            commands.remove(i + 1);
-                        }
-                        _ => i += 1,
-                    };
-                }
-                _ => i += 1,
-            }
-        }
-    }
+    compress(&mut commands);
 
     println!(
         "{}",
@@ -481,4 +446,41 @@ fn main() {
     );
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
+}
+
+fn compress(commands: &mut Vec<Command>) {
+    use Command::*;
+
+    let mut i = 0;
+    while i < commands.len() - 1 {
+        match &commands[i] {
+            F => {
+                match &commands[i + 1] {
+                    F => {
+                        commands[i] = Iter(2, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    Iter(n, v) if *v == vec![F] => {
+                        commands[i] = Iter(n + 1, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    _ => i += 1,
+                };
+            }
+            Iter(n, v) if *v == vec![F] => {
+                match &commands[i + 1] {
+                    F => {
+                        commands[i] = Iter(n + 1, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    Iter(m, v2) if *v2 == vec![F] => {
+                        commands[i] = Iter(n + m, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    _ => i += 1,
+                };
+            }
+            _ => i += 1,
+        }
+    }
 }
