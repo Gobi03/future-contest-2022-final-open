@@ -165,6 +165,8 @@ impl State {
                     self.robot.do_command(command, input);
                 }
             }
+        } else {
+            panic!("command over 5,000");
         }
     }
 
@@ -328,7 +330,7 @@ fn main() {
     let com = {
         use Command::*;
         Iter(
-            150,
+            100,
             vec![
                 Iter(4, vec![TurnL, Turnr, Turnr, F]),
                 Iter(3, vec![TurnR, Turnl, Turnl, F]),
@@ -348,6 +350,7 @@ fn main() {
         let mut goal = Coord::new((-1, -1));
         let mut tmp_dist = std::isize::MAX;
         let not_gone_grids = st.get_not_gone_grids();
+
         if not_gone_grids.len() == 0 {
             break;
         }
@@ -358,6 +361,7 @@ fn main() {
                 goal = pos;
             }
         }
+
         // エッジを引いて
         let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
         deque.push_front((now_robot.clone(), vec![]));
@@ -430,6 +434,44 @@ fn main() {
     }
 
     eprintln!("rest_num: {}", st.rest_grid_num);
+
+    // 圧縮
+    {
+        use Command::*;
+
+        let mut i = 0;
+        while i < commands.len() - 1 {
+            match &commands[i] {
+                F => {
+                    match &commands[i + 1] {
+                        F => {
+                            commands[i] = Iter(2, vec![F]);
+                            commands.remove(i + 1);
+                        }
+                        Iter(n, v) if *v == vec![F] => {
+                            commands[i] = Iter(n + 1, vec![F]);
+                            commands.remove(i + 1);
+                        }
+                        _ => i += 1,
+                    };
+                }
+                Iter(n, v) if *v == vec![F] => {
+                    match &commands[i + 1] {
+                        F => {
+                            commands[i] = Iter(n + 1, vec![F]);
+                            commands.remove(i + 1);
+                        }
+                        Iter(m, v2) if *v2 == vec![F] => {
+                            commands[i] = Iter(n + m, vec![F]);
+                            commands.remove(i + 1);
+                        }
+                        _ => i += 1,
+                    };
+                }
+                _ => i += 1,
+            }
+        }
+    }
 
     println!(
         "{}",
