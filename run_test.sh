@@ -2,7 +2,7 @@
 
 set -eu
 
-test_num="0025"
+test_num="0000"
 
 cargo build --release
 "../target/release/a" < "tools/in/${test_num}.txt" > "tools/out/${test_num}.txt"

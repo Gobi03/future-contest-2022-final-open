@@ -362,7 +362,27 @@ fn main() {
             }
         }
 
-        // エッジを引いて
+        // **残りのマスの掃除**
+
+        // L, R の遷移
+        fn rotate_transit(
+            now_robot: &Robot,
+            command: Command,
+            dp: &mut Vec<Vec<Vec<bool>>>,
+            deque: &mut VecDeque<(Robot, Vec<Command>)>,
+            history: &Vec<Command>,
+            input: &Input,
+        ) {
+            let mut robot = now_robot.clone();
+            robot.do_command(&command, &input);
+            if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+                dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] = true;
+                let mut next_history = history.clone();
+                next_history.push(command);
+                deque.push_back((robot, next_history))
+            }
+        }
+
         let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
         deque.push_front((now_robot.clone(), vec![]));
         let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
@@ -379,30 +399,9 @@ fn main() {
                 now_robot = robot.clone();
                 break;
             } else {
-                {
-                    let mut robot = robot.clone();
-                    let command = Command::TurnL;
-                    robot.do_command(&command, &input);
-                    if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
-                        dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] =
-                            true;
-                        let mut next_history = history.clone();
-                        next_history.push(command);
-                        deque.push_back((robot, next_history))
-                    }
-                }
-                {
-                    let mut robot = robot.clone();
-                    let command = Command::TurnR;
-                    robot.do_command(&command, &input);
-                    if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
-                        dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] =
-                            true;
-                        let mut next_history = history.clone();
-                        next_history.push(command);
-                        deque.push_back((robot, next_history))
-                    }
-                }
+                // 左右を向く
+                rotate_transit(&robot, TurnL, &mut dp, &mut deque, &history, &input);
+                rotate_transit(&robot, TurnR, &mut dp, &mut deque, &history, &input);
 
                 // 前進
                 if robot.can_progress(&input) {
