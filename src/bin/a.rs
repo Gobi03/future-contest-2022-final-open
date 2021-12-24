@@ -247,7 +247,7 @@ impl Command {
             Self::F => "F".to_string(),
             Self::Iter(n, v) => {
                 if *n <= 1 || v.len() == 0 {
-                    panic!()
+                    panic!("Command::Iterの中身が変. {} {:?}", n, v);
                 } else if v.len() == 1 {
                     format!("{}{}", n, v[0].to_string())
                 } else {
@@ -402,14 +402,14 @@ fn main() {
 
     // TODO: 複数パターン試す
     let mut ans = String::from("0".repeat(5000));
-    for a in 1..=5 {
-        for b in 1..=5 {
+    for a in 2..=5 {
+        for b in 2..=5 {
             let mut st = st.clone();
 
             let com = {
                 use Command::*;
                 Iter(
-                    400 / ((a + b) * 4), // TODO: もっと大きい数字を使う
+                    4_000 / ((a + b) * 4), // TODO: もっと大きい数字を使う
                     vec![
                         Iter(a, vec![TurnL, Turnr, Turnr, F]),
                         Iter(b, vec![TurnR, Turnl, Turnl, F]),
