@@ -124,6 +124,7 @@ impl Input {
     }
 }
 
+#[derive(Clone)]
 struct State {
     robot: Robot,
     gone: Vec<Vec<bool>>,
@@ -325,7 +326,7 @@ fn main() {
     }
 
     let input = Input::new(sy, sx, h, v);
-    let mut st = State::new(&input);
+    let st = State::new(&input);
 
     // 距離テーブル作り
     let mut dist_table: Vec<Vec<Vec<Vec<Vec<Vec<usize>>>>>> =
@@ -400,85 +401,95 @@ fn main() {
     }
 
     // TODO: 複数パターン試す
-    let com = {
-        use Command::*;
-        Iter(
-            100, // TODO: もっと大きい数字を使う
-            vec![
-                Iter(4, vec![TurnL, Turnr, Turnr, F]),
-                Iter(3, vec![TurnR, Turnl, Turnl, F]),
-            ],
-        )
-    };
-    st.do_command(&com, &input);
+    let mut ans = String::from("0".repeat(5000));
+    for a in 1..=5 {
+        for b in 1..=5 {
+            let mut st = st.clone();
 
-    eprintln!("rest_num: {}", st.rest_grid_num);
-    eprintln!("{:?}", st.robot.pos);
+            let com = {
+                use Command::*;
+                Iter(
+                    400 / ((a + b) * 4), // TODO: もっと大きい数字を使う
+                    vec![
+                        Iter(a, vec![TurnL, Turnr, Turnr, F]),
+                        Iter(b, vec![TurnR, Turnl, Turnl, F]),
+                    ],
+                )
+            };
 
-    // TSPフェーズ
-    let mut commands = vec![com];
+            st.do_command(&com, &input);
 
-    let mut now_robot = st.robot.clone();
-    loop {
-        let mut goal = Coord::new((-1, -1));
-        let mut tmp_dist = std::usize::MAX;
-        let not_gone_grids = st.get_not_gone_grids();
+            eprintln!("a = {}, b = {}", a, b);
+            eprintln!("rest_num: {}", st.rest_grid_num);
 
-        if not_gone_grids.len() == 0 {
-            break;
-        }
-        for pos in not_gone_grids {
-            let &dist = now_robot.pos.access_matrix(&dist_table)[now_robot.direction.to_num()]
-                [pos.y as usize][pos.x as usize]
-                .iter()
-                .max()
-                .unwrap();
-            //pos.distance(&now_robot.pos);
-            if dist < tmp_dist {
-                tmp_dist = dist;
-                goal = pos;
-            }
-        }
+            // TSPフェーズ
+            let mut commands = vec![com];
 
-        // **残りのマスの掃除**
-        let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
-        deque.push_front((now_robot.clone(), vec![]));
-        let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
-        dp[now_robot.pos.y as usize][now_robot.pos.x as usize][now_robot.direction.to_num()] = true;
-        while !deque.is_empty() {
-            use Command::*;
+            let mut now_robot = st.robot.clone();
+            loop {
+                let mut goal = Coord::new((-1, -1));
+                let mut tmp_dist = std::usize::MAX;
+                let not_gone_grids = st.get_not_gone_grids();
 
-            let (robot, history) = deque.pop_front().unwrap();
-            if robot.pos == goal {
-                for com in &history {
-                    st.do_command(com, &input);
+                if not_gone_grids.len() == 0 {
+                    break;
                 }
-                commands.extend(history.into_iter());
-                now_robot = robot.clone();
-                break;
-            } else {
-                // 左右を向く
-                rotate_transit(&robot, TurnL, &mut dp, &mut deque, &history, &input);
-                rotate_transit(&robot, TurnR, &mut dp, &mut deque, &history, &input);
+                for pos in not_gone_grids {
+                    let &dist = now_robot.pos.access_matrix(&dist_table)
+                        [now_robot.direction.to_num()][pos.y as usize][pos.x as usize]
+                        .iter()
+                        .max()
+                        .unwrap();
+                    //pos.distance(&now_robot.pos);
+                    if dist < tmp_dist {
+                        tmp_dist = dist;
+                        goal = pos;
+                    }
+                }
 
-                // 前進
-                progress_transit(&robot, &mut dp, &mut deque, &history, &input);
+                // **残りのマスの掃除**
+                let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
+                deque.push_front((now_robot.clone(), vec![]));
+                let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
+                dp[now_robot.pos.y as usize][now_robot.pos.x as usize]
+                    [now_robot.direction.to_num()] = true;
+                while !deque.is_empty() {
+                    use Command::*;
+
+                    let (robot, history) = deque.pop_front().unwrap();
+                    if robot.pos == goal {
+                        for com in &history {
+                            st.do_command(com, &input);
+                        }
+                        commands.extend(history.into_iter());
+                        now_robot = robot.clone();
+                        break;
+                    } else {
+                        // 左右を向く
+                        rotate_transit(&robot, TurnL, &mut dp, &mut deque, &history, &input);
+                        rotate_transit(&robot, TurnR, &mut dp, &mut deque, &history, &input);
+
+                        // 前進
+                        progress_transit(&robot, &mut dp, &mut deque, &history, &input);
+                    }
+                }
+            }
+
+            // 圧縮
+            compress(&mut commands);
+
+            let repr = commands
+                .iter()
+                .map(|com| com.to_string())
+                .collect::<String>();
+
+            if repr.len() < ans.len() {
+                ans = repr;
             }
         }
     }
 
-    eprintln!("rest_num: {}", st.rest_grid_num);
-
-    // 圧縮
-    compress(&mut commands);
-
-    println!(
-        "{}",
-        commands
-            .iter()
-            .map(|com| com.to_string())
-            .collect::<String>()
-    );
+    println!("{}", ans);
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
 }
