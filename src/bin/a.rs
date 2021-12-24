@@ -327,10 +327,18 @@ fn main() {
     let input = Input::new(sy, sx, h, v);
     let mut st = State::new(&input);
 
+    // 距離テーブル作り
+    let mut dist_table: Vec<Vec<Vec<Vec<Vec<usize>>>>> =
+        vec![vec![vec![vec![vec![std::usize::MAX; 4]; N]; N]; N]; N]; // [y][x][dir] := 距離;
+    for sy in 0..N {
+        for sx in 0..N {}
+    }
+
+    // TODO: 複数パターン試す
     let com = {
         use Command::*;
         Iter(
-            100,
+            100, // TODO: もっと大きい数字を使う
             vec![
                 Iter(4, vec![TurnL, Turnr, Turnr, F]),
                 Iter(3, vec![TurnR, Turnl, Turnl, F]),
@@ -383,6 +391,45 @@ fn main() {
             }
         }
 
+        fn progress_transit(
+            now_robot: &Robot,
+            dp: &mut Vec<Vec<Vec<bool>>>,
+            deque: &mut VecDeque<(Robot, Vec<Command>)>,
+            history: &Vec<Command>,
+            input: &Input,
+        ) {
+            use Command::*;
+
+            if now_robot.can_progress(&input) {
+                let mut robot = now_robot.clone();
+                let mut next_history = history.clone();
+                robot.do_command(&F, &input);
+                if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+                    dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] = true;
+
+                    if history.len() == 0 {
+                        next_history.push(Command::F);
+                        deque.push_back((robot, next_history));
+                    } else {
+                        match &history[history.len() - 1] {
+                            Command::F => {
+                                next_history[history.len() - 1] = Command::Iter(2, vec![F]);
+                                deque.push_back((robot, next_history));
+                            }
+                            Command::Iter(n, v) if *v == vec![F] => {
+                                next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
+                                deque.push_front((robot, next_history));
+                            }
+                            _ => {
+                                next_history.push(Command::F);
+                                deque.push_back((robot, next_history));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
         deque.push_front((now_robot.clone(), vec![]));
         let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
@@ -404,30 +451,7 @@ fn main() {
                 rotate_transit(&robot, TurnR, &mut dp, &mut deque, &history, &input);
 
                 // 前進
-                if robot.can_progress(&input) {
-                    let mut robot = robot.clone();
-                    let mut next_history = history.clone();
-                    robot.do_command(&F, &input);
-                    if history.len() == 0 {
-                        next_history.push(Command::F);
-                        deque.push_back((robot, next_history));
-                    } else {
-                        match &history[history.len() - 1] {
-                            Command::F => {
-                                next_history[history.len() - 1] = Command::Iter(2, vec![F]);
-                                deque.push_back((robot, next_history));
-                            }
-                            Command::Iter(n, v) if *v == vec![F] => {
-                                next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
-                                deque.push_front((robot, next_history));
-                            }
-                            _ => {
-                                next_history.push(Command::F);
-                                deque.push_back((robot, next_history));
-                            }
-                        }
-                    }
-                }
+                progress_transit(&robot, &mut dp, &mut deque, &history, &input);
             }
         }
     }
