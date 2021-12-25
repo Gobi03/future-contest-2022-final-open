@@ -246,8 +246,10 @@ impl Command {
             Self::Turnl => "l".to_string(),
             Self::F => "F".to_string(),
             Self::Iter(n, v) => {
-                if *n <= 1 || v.len() == 0 {
+                if *n == 0 || v.len() == 0 {
                     panic!("Command::Iterの中身が変. {} {:?}", n, v);
+                } else if *n == 1 {
+                    v.iter().map(|com| com.to_string()).collect::<String>()
                 } else if v.len() == 1 {
                     format!("{}{}", n, v[0].to_string())
                 } else {
@@ -400,10 +402,9 @@ fn main() {
         }
     }
 
-    // TODO: 複数パターン試す
     let mut ans = String::from("0".repeat(5000));
-    for a in 2..=5 {
-        for b in 2..=5 {
+    for a in 1..=7 {
+        for b in 1..=7 {
             let mut st = st.clone();
 
             let com = {
