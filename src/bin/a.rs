@@ -144,30 +144,26 @@ impl State {
     }
 
     fn do_command(&mut self, command: &Command, input: &Input) {
-        if self.command_cnt < MAX_COMMAND_NUM {
-            match command {
-                Command::F => {
-                    self.robot.do_command(command, input);
-                    self.command_cnt += 1;
-                    if !self.robot.pos.access_matrix(&self.gone) {
-                        self.rest_grid_num -= 1;
-                        self.robot.pos.set_matrix(&mut self.gone, true);
-                    }
-                }
-                Command::Iter(n, coms) => {
-                    for _ in 0..*n {
-                        for com in coms {
-                            self.do_command(com, input)
-                        }
-                    }
-                }
-                _ => {
-                    self.command_cnt += 1;
-                    self.robot.do_command(command, input);
+        match command {
+            Command::F => {
+                self.robot.do_command(command, input);
+                self.command_cnt += 1;
+                if !self.robot.pos.access_matrix(&self.gone) {
+                    self.rest_grid_num -= 1;
+                    self.robot.pos.set_matrix(&mut self.gone, true);
                 }
             }
-        } else {
-            panic!("command over 5,000");
+            Command::Iter(n, coms) => {
+                for _ in 0..*n {
+                    for com in coms {
+                        self.do_command(com, input)
+                    }
+                }
+            }
+            _ => {
+                self.command_cnt += 1;
+                self.robot.do_command(command, input);
+            }
         }
     }
 
@@ -416,7 +412,7 @@ fn main() {
                         Iter(b, vec![TurnR, Turnl, Turnl, F]),
                     ];
                     Iter(
-                        4_000 / ((a + b) * 4), // TODO: もっと大きい数字を使う
+                        4_500 / ((a + b) * 4), // TODO: もっと大きい数字を使う
                         if r == 0 {
                             v
                         } else {
