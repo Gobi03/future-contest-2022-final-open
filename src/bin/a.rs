@@ -26,7 +26,7 @@ const MAX_COMMAND_NUM: usize = 5_000;
 const FIRST_COMMAND_NUM_UPPER: usize = MAX_COMMAND_NUM - 100;
 
 // TODO: もっと小さくても良さそう
-const REST_GRID_NUM_FOOTCUT: usize = 100;
+const REST_GRID_NUM_FOOTCUT: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Coord {
@@ -404,10 +404,10 @@ fn main() {
     }
 
     let mut ans = String::from("0".repeat(5000));
-    for a in 1..=7 {
+    for a in 1..=6 {
         for b in 1..=7 {
             for r in 0..=1 {
-                for n in 0..10 {
+                for n in 0..30 {
                     let mut st = st.clone();
 
                     let com = {
