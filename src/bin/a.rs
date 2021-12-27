@@ -23,6 +23,8 @@ const MOD: usize = 1e9 as usize + 7;
 const N: usize = 20;
 const MAX_COMMAND_NUM: usize = 5_000;
 
+const FIRST_COMMAND_NUM_UPPER: usize = MAX_COMMAND_NUM - 100;
+
 // TODO: もっと小さくても良さそう
 const REST_GRID_NUM_FOOTCUT: usize = 100;
 
@@ -415,7 +417,7 @@ fn main() {
                         Iter(b, vec![TurnR, Turnl, Turnl, F]),
                     ];
                     Iter(
-                        4_500 / ((a + b) * 4), // TODO: もっと大きい数字を使う
+                        FIRST_COMMAND_NUM_UPPER / ((a + b) * 4),
                         if r == 0 {
                             v
                         } else {
