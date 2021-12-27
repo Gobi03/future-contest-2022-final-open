@@ -21,6 +21,12 @@ use std::time::SystemTime;
 const MOD: usize = 1e9 as usize + 7;
 
 const N: usize = 20;
+const MAX_COMMAND_NUM: usize = 5_000;
+
+const FIRST_COMMAND_NUM_UPPER: usize = MAX_COMMAND_NUM - 100;
+
+// TODO: もっと小さくても良さそう
+const REST_GRID_NUM_FOOTCUT: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Coord {
@@ -123,6 +129,63 @@ impl Input {
     }
 }
 
+#[derive(Clone)]
+struct State {
+    robot: Robot,
+    gone: Vec<Vec<bool>>,
+    rest_grid_num: usize,
+    command_cnt: usize,
+}
+impl State {
+    fn new(input: &Input) -> Self {
+        let mut gone = vec![vec![false; N]; N];
+        input.start.set_matrix(&mut gone, true);
+        Self {
+            robot: Robot::new(&input),
+            gone,
+            rest_grid_num: N * N - 1,
+            command_cnt: 0,
+        }
+    }
+
+    fn do_command(&mut self, command: &Command, input: &Input) {
+        match command {
+            Command::F => {
+                self.robot.do_command(command, input);
+                self.command_cnt += 1;
+                if !self.robot.pos.access_matrix(&self.gone) {
+                    self.rest_grid_num -= 1;
+                    self.robot.pos.set_matrix(&mut self.gone, true);
+                }
+            }
+            Command::Iter(n, coms) => {
+                for _ in 0..*n {
+                    for com in coms {
+                        self.do_command(com, input)
+                    }
+                }
+            }
+            _ => {
+                self.command_cnt += 1;
+                self.robot.do_command(command, input);
+            }
+        }
+    }
+
+    fn get_not_gone_grids(&self) -> Vec<Coord> {
+        let mut res = vec![];
+        for y in 0..N {
+            for x in 0..N {
+                if !self.gone[y][x] {
+                    res.push(Coord::from_usize_pair((x, y)));
+                }
+            }
+        }
+        res
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Direction {
     Left,
     Right,
@@ -136,6 +199,15 @@ impl Direction {
             Self::Right => Coord::new((1, 0)),
             Self::Up => Coord::new((0, -1)),
             Self::Down => Coord::new((0, 1)),
+        }
+    }
+
+    fn to_num(&self) -> usize {
+        match *self {
+            Self::Up => 0,
+            Self::Left => 1,
+            Self::Down => 2,
+            Self::Right => 3,
         }
     }
 
@@ -157,25 +229,40 @@ impl Direction {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Command {
     TurnR,
     TurnL,
     Turnr,
     Turnl,
     F,
+    Iter(usize, Vec<Command>),
 }
 impl Command {
-    fn to_char(&self) -> char {
-        match *self {
-            Self::TurnR => 'R',
-            Self::TurnL => 'L',
-            Self::Turnr => 'r',
-            Self::Turnl => 'l',
-            Self::F => 'F',
+    fn to_string(&self) -> String {
+        match self {
+            Self::TurnR => "R".to_string(),
+            Self::TurnL => "L".to_string(),
+            Self::Turnr => "r".to_string(),
+            Self::Turnl => "l".to_string(),
+            Self::F => "F".to_string(),
+            Self::Iter(n, v) => {
+                if *n == 0 || v.len() == 0 {
+                    panic!("Command::Iterの中身が変. {} {:?}", n, v);
+                } else if *n == 1 {
+                    v.iter().map(|com| com.to_string()).collect::<String>()
+                } else if v.len() == 1 {
+                    format!("{}{}", n, v[0].to_string())
+                } else {
+                    let str = v.iter().map(|com| com.to_string()).collect::<String>();
+                    format!("{}({})", n, str)
+                }
+            }
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Robot {
     pos: Coord,
     direction: Direction,
@@ -203,13 +290,28 @@ impl Robot {
     }
 
     // valid な命令が来る前提
-    fn do_command(&mut self, command: &Command) {
+    fn do_command(&mut self, command: &Command, input: &Input) {
         match command {
             Command::TurnR => self.direction = self.direction.rotate_right(),
             Command::TurnL => self.direction = self.direction.rotate_left(),
-            Command::Turnr => self.direction = self.direction.rotate_right(),
-            Command::Turnl => self.direction = self.direction.rotate_left(),
-            Command::F => self.pos = self.pos.plus(&self.direction.to_delta()),
+            Command::Turnr => {
+                if !self.can_progress(&input) {
+                    self.direction = self.direction.rotate_right()
+                }
+            }
+            Command::Turnl => {
+                if !self.can_progress(&input) {
+                    self.direction = self.direction.rotate_left()
+                }
+            }
+            Command::F => {
+                if !self.can_progress(&input) {
+                    panic!("Command F toward wall.");
+                } else {
+                    self.pos = self.pos.plus(&self.direction.to_delta())
+                }
+            }
+            Command::Iter(_, _) => unreachable!(),
         }
     }
 }
@@ -217,7 +319,7 @@ impl Robot {
 #[fastout]
 fn main() {
     let system_time = SystemTime::now();
-    let mut rng = thread_rng();
+    let mut _rng = thread_rng();
 
     input! {
         sy: usize,
@@ -227,25 +329,284 @@ fn main() {
     }
 
     let input = Input::new(sy, sx, h, v);
-    let mut robot = Robot::new(&input);
+    let st = State::new(&input);
 
-    let mut ans = vec![];
-    for _ in 0..10_000 {
-        let command = if robot.can_progress(&input) {
-            Command::F
-        } else {
-            if rng.gen_bool(0.5) {
-                Command::Turnl
-            } else {
-                Command::Turnr
+    // 距離テーブル作り
+    let mut dist_table: Vec<Vec<Vec<Vec<Vec<Vec<usize>>>>>> =
+        vec![vec![vec![vec![vec![vec![std::usize::MAX; 4]; N]; N]; 4]; N]; N]; // [y][x][dir] := 距離;
+    let mut deque = VecDeque::new(); // (座標, 向き, 最終コマンドがFである)
+    for sy in 0..N {
+        for sx in 0..N {
+            use Direction::*;
+            for dir in &[Left, Right, Up, Down] {
+                let table = &mut dist_table[sy][sx][dir.to_num()];
+                table[sy][sx][dir.to_num()] = 0;
+                let init_robot = Robot {
+                    pos: Coord::from_usize_pair((sx, sy)),
+                    direction: dir.clone(),
+                };
+                deque.push_front((init_robot, 0, 0));
+
+                while !deque.is_empty() {
+                    use Command::*;
+
+                    let (now_robot, dist, in_progress) = deque.pop_front().unwrap();
+
+                    // 回転
+                    {
+                        let mut robot = now_robot.clone();
+                        let command = TurnR;
+                        robot.do_command(&command, &input);
+                        if robot.pos.access_matrix(&table)[robot.direction.to_num()]
+                            == std::usize::MAX
+                        {
+                            table[robot.pos.y as usize][robot.pos.x as usize]
+                                [robot.direction.to_num()] = dist + 1;
+                            deque.push_back((robot, dist + 1, 0))
+                        }
+                    }
+                    {
+                        let mut robot = now_robot.clone();
+                        let command = TurnL;
+                        robot.do_command(&command, &input);
+                        if robot.pos.access_matrix(&table)[robot.direction.to_num()]
+                            == std::usize::MAX
+                        {
+                            table[robot.pos.y as usize][robot.pos.x as usize]
+                                [robot.direction.to_num()] = dist + 1;
+                            deque.push_back((robot, dist + 1, 0))
+                        }
+                    }
+
+                    // 前進
+                    {
+                        if now_robot.can_progress(&input) {
+                            let mut robot = now_robot.clone();
+                            robot.do_command(&F, &input);
+                            if robot.pos.access_matrix(&table)[robot.direction.to_num()]
+                                == std::usize::MAX
+                            {
+                                if in_progress <= 1 {
+                                    table[robot.pos.y as usize][robot.pos.x as usize]
+                                        [robot.direction.to_num()] = dist + 1;
+                                    deque.push_back((robot, dist + 1, in_progress + 1))
+                                } else {
+                                    table[robot.pos.y as usize][robot.pos.x as usize]
+                                        [robot.direction.to_num()] = dist;
+                                    deque.push_front((robot, dist, in_progress + 1))
+                                }
+                            }
+                        }
+                    }
+                }
             }
-        };
-
-        robot.do_command(&command);
-        ans.push(command.to_char());
+        }
     }
 
-    println!("{}", ans.iter().map(|c| c.to_string()).collect::<String>());
+    let mut ans = String::from("0".repeat(5000));
+    for a in 1..=6 {
+        for b in 1..=7 {
+            for r in 0..=1 {
+                for n in 0..30 {
+                    let mut st = st.clone();
+
+                    let com = {
+                        use Command::*;
+
+                        let mut v = vec![
+                            Iter(a, vec![TurnL, Turnr, Turnr, F]),
+                            Iter(b, vec![TurnR, Turnl, Turnl, F]),
+                        ];
+                        Iter(
+                            FIRST_COMMAND_NUM_UPPER / ((a + b) * 4) - n,
+                            if r == 0 {
+                                v
+                            } else {
+                                v.reverse();
+                                v
+                            },
+                        )
+                    };
+
+                    st.do_command(&com, &input);
+
+                    if st.rest_grid_num > REST_GRID_NUM_FOOTCUT {
+                        continue;
+                    }
+
+                    // eprintln!("a = {}, b = {}, rest_num: {}", a, b, st.rest_grid_num);
+
+                    // TSPフェーズ
+                    let mut commands = vec![com];
+
+                    let mut now_robot = st.robot.clone();
+                    loop {
+                        let mut goal = Coord::new((-1, -1));
+                        let mut tmp_dist = std::usize::MAX;
+                        let not_gone_grids = st.get_not_gone_grids();
+
+                        if not_gone_grids.len() == 0 {
+                            break;
+                        }
+                        for pos in not_gone_grids {
+                            let &dist = now_robot.pos.access_matrix(&dist_table)
+                                [now_robot.direction.to_num()][pos.y as usize]
+                                [pos.x as usize]
+                                .iter()
+                                .max()
+                                .unwrap();
+                            //pos.distance(&now_robot.pos);
+                            if dist < tmp_dist {
+                                tmp_dist = dist;
+                                goal = pos;
+                            }
+                        }
+
+                        // **残りのマスの掃除**
+                        let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
+                        deque.push_front((now_robot.clone(), vec![]));
+                        let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
+                        dp[now_robot.pos.y as usize][now_robot.pos.x as usize]
+                            [now_robot.direction.to_num()] = true;
+                        while !deque.is_empty() {
+                            use Command::*;
+
+                            let (robot, history) = deque.pop_front().unwrap();
+                            if robot.pos == goal {
+                                for com in &history {
+                                    st.do_command(com, &input);
+                                }
+                                commands.extend(history.into_iter());
+                                now_robot = robot.clone();
+                                break;
+                            } else {
+                                // 左右を向く
+                                rotate_transit(
+                                    &robot, TurnL, &mut dp, &mut deque, &history, &input,
+                                );
+                                rotate_transit(
+                                    &robot, TurnR, &mut dp, &mut deque, &history, &input,
+                                );
+
+                                // 前進
+                                progress_transit(&robot, &mut dp, &mut deque, &history, &input);
+                            }
+                        }
+                    }
+
+                    // 圧縮
+                    compress(&mut commands);
+
+                    let repr = commands
+                        .iter()
+                        .map(|com| com.to_string())
+                        .collect::<String>();
+
+                    if repr.len() < ans.len() {
+                        eprintln!("a = {}, b = {}, n = {}, updated", a, b, n);
+                        ans = repr;
+                    }
+                }
+            }
+        }
+    }
+
+    println!("{}", ans);
 
     eprintln!("{}ms", system_time.elapsed().unwrap().as_millis());
+}
+
+fn compress(commands: &mut Vec<Command>) {
+    use Command::*;
+
+    let mut i = 0;
+    while i < commands.len() - 1 {
+        match &commands[i] {
+            F => {
+                match &commands[i + 1] {
+                    F => {
+                        commands[i] = Iter(2, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    Iter(n, v) if *v == vec![F] => {
+                        commands[i] = Iter(n + 1, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    _ => i += 1,
+                };
+            }
+            Iter(n, v) if *v == vec![F] => {
+                match &commands[i + 1] {
+                    F => {
+                        commands[i] = Iter(n + 1, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    Iter(m, v2) if *v2 == vec![F] => {
+                        commands[i] = Iter(n + m, vec![F]);
+                        commands.remove(i + 1);
+                    }
+                    _ => i += 1,
+                };
+            }
+            _ => i += 1,
+        }
+    }
+}
+
+// L, R の遷移
+fn rotate_transit(
+    now_robot: &Robot,
+    command: Command,
+    dp: &mut Vec<Vec<Vec<bool>>>,
+    deque: &mut VecDeque<(Robot, Vec<Command>)>,
+    history: &Vec<Command>,
+    input: &Input,
+) {
+    let mut robot = now_robot.clone();
+    robot.do_command(&command, &input);
+    if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+        dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] = true;
+        let mut next_history = history.clone();
+        next_history.push(command);
+        deque.push_back((robot, next_history))
+    }
+}
+
+fn progress_transit(
+    now_robot: &Robot,
+    dp: &mut Vec<Vec<Vec<bool>>>,
+    deque: &mut VecDeque<(Robot, Vec<Command>)>,
+    history: &Vec<Command>,
+    input: &Input,
+) {
+    use Command::*;
+
+    if now_robot.can_progress(&input) {
+        let mut robot = now_robot.clone();
+        let mut next_history = history.clone();
+        robot.do_command(&F, &input);
+        if !robot.pos.access_matrix(&dp)[robot.direction.to_num()] {
+            dp[robot.pos.y as usize][robot.pos.x as usize][robot.direction.to_num()] = true;
+
+            if history.len() == 0 {
+                next_history.push(Command::F);
+                deque.push_back((robot, next_history));
+            } else {
+                match &history[history.len() - 1] {
+                    Command::F => {
+                        next_history[history.len() - 1] = Command::Iter(2, vec![F]);
+                        deque.push_back((robot, next_history));
+                    }
+                    Command::Iter(n, v) if *v == vec![F] => {
+                        next_history[history.len() - 1] = Command::Iter(n + 1, vec![F]);
+                        deque.push_front((robot, next_history));
+                    }
+                    _ => {
+                        next_history.push(Command::F);
+                        deque.push_back((robot, next_history));
+                    }
+                }
+            }
+        }
+    }
 }
