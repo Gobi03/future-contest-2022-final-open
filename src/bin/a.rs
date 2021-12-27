@@ -407,99 +407,105 @@ fn main() {
     for a in 1..=7 {
         for b in 1..=7 {
             for r in 0..=1 {
-                let mut st = st.clone();
+                for n in 0..10 {
+                    let mut st = st.clone();
 
-                let com = {
-                    use Command::*;
-
-                    let mut v = vec![
-                        Iter(a, vec![TurnL, Turnr, Turnr, F]),
-                        Iter(b, vec![TurnR, Turnl, Turnl, F]),
-                    ];
-                    Iter(
-                        FIRST_COMMAND_NUM_UPPER / ((a + b) * 4),
-                        if r == 0 {
-                            v
-                        } else {
-                            v.reverse();
-                            v
-                        },
-                    )
-                };
-
-                st.do_command(&com, &input);
-
-                if st.rest_grid_num > REST_GRID_NUM_FOOTCUT {
-                    continue;
-                }
-
-                eprintln!("a = {}, b = {}, rest_num: {}", a, b, st.rest_grid_num);
-
-                // TSPフェーズ
-                let mut commands = vec![com];
-
-                let mut now_robot = st.robot.clone();
-                loop {
-                    let mut goal = Coord::new((-1, -1));
-                    let mut tmp_dist = std::usize::MAX;
-                    let not_gone_grids = st.get_not_gone_grids();
-
-                    if not_gone_grids.len() == 0 {
-                        break;
-                    }
-                    for pos in not_gone_grids {
-                        let &dist = now_robot.pos.access_matrix(&dist_table)
-                            [now_robot.direction.to_num()][pos.y as usize]
-                            [pos.x as usize]
-                            .iter()
-                            .max()
-                            .unwrap();
-                        //pos.distance(&now_robot.pos);
-                        if dist < tmp_dist {
-                            tmp_dist = dist;
-                            goal = pos;
-                        }
-                    }
-
-                    // **残りのマスの掃除**
-                    let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
-                    deque.push_front((now_robot.clone(), vec![]));
-                    let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
-                    dp[now_robot.pos.y as usize][now_robot.pos.x as usize]
-                        [now_robot.direction.to_num()] = true;
-                    while !deque.is_empty() {
+                    let com = {
                         use Command::*;
 
-                        let (robot, history) = deque.pop_front().unwrap();
-                        if robot.pos == goal {
-                            for com in &history {
-                                st.do_command(com, &input);
-                            }
-                            commands.extend(history.into_iter());
-                            now_robot = robot.clone();
-                            break;
-                        } else {
-                            // 左右を向く
-                            rotate_transit(&robot, TurnL, &mut dp, &mut deque, &history, &input);
-                            rotate_transit(&robot, TurnR, &mut dp, &mut deque, &history, &input);
+                        let mut v = vec![
+                            Iter(a, vec![TurnL, Turnr, Turnr, F]),
+                            Iter(b, vec![TurnR, Turnl, Turnl, F]),
+                        ];
+                        Iter(
+                            FIRST_COMMAND_NUM_UPPER / ((a + b) * 4) - n,
+                            if r == 0 {
+                                v
+                            } else {
+                                v.reverse();
+                                v
+                            },
+                        )
+                    };
 
-                            // 前進
-                            progress_transit(&robot, &mut dp, &mut deque, &history, &input);
+                    st.do_command(&com, &input);
+
+                    if st.rest_grid_num > REST_GRID_NUM_FOOTCUT {
+                        continue;
+                    }
+
+                    // eprintln!("a = {}, b = {}, rest_num: {}", a, b, st.rest_grid_num);
+
+                    // TSPフェーズ
+                    let mut commands = vec![com];
+
+                    let mut now_robot = st.robot.clone();
+                    loop {
+                        let mut goal = Coord::new((-1, -1));
+                        let mut tmp_dist = std::usize::MAX;
+                        let not_gone_grids = st.get_not_gone_grids();
+
+                        if not_gone_grids.len() == 0 {
+                            break;
+                        }
+                        for pos in not_gone_grids {
+                            let &dist = now_robot.pos.access_matrix(&dist_table)
+                                [now_robot.direction.to_num()][pos.y as usize]
+                                [pos.x as usize]
+                                .iter()
+                                .max()
+                                .unwrap();
+                            //pos.distance(&now_robot.pos);
+                            if dist < tmp_dist {
+                                tmp_dist = dist;
+                                goal = pos;
+                            }
+                        }
+
+                        // **残りのマスの掃除**
+                        let mut deque = VecDeque::new(); // (座標, 向き, コマンド履歴)
+                        deque.push_front((now_robot.clone(), vec![]));
+                        let mut dp = vec![vec![vec![false; 4]; N]; N]; // [y][x][dir] := 行ったかどうか
+                        dp[now_robot.pos.y as usize][now_robot.pos.x as usize]
+                            [now_robot.direction.to_num()] = true;
+                        while !deque.is_empty() {
+                            use Command::*;
+
+                            let (robot, history) = deque.pop_front().unwrap();
+                            if robot.pos == goal {
+                                for com in &history {
+                                    st.do_command(com, &input);
+                                }
+                                commands.extend(history.into_iter());
+                                now_robot = robot.clone();
+                                break;
+                            } else {
+                                // 左右を向く
+                                rotate_transit(
+                                    &robot, TurnL, &mut dp, &mut deque, &history, &input,
+                                );
+                                rotate_transit(
+                                    &robot, TurnR, &mut dp, &mut deque, &history, &input,
+                                );
+
+                                // 前進
+                                progress_transit(&robot, &mut dp, &mut deque, &history, &input);
+                            }
                         }
                     }
-                }
 
-                // 圧縮
-                compress(&mut commands);
+                    // 圧縮
+                    compress(&mut commands);
 
-                let repr = commands
-                    .iter()
-                    .map(|com| com.to_string())
-                    .collect::<String>();
+                    let repr = commands
+                        .iter()
+                        .map(|com| com.to_string())
+                        .collect::<String>();
 
-                if repr.len() < ans.len() {
-                    eprintln!("a = {}, b = {}, updated", a, b);
-                    ans = repr;
+                    if repr.len() < ans.len() {
+                        eprintln!("a = {}, b = {}, n = {}, updated", a, b, n);
+                        ans = repr;
+                    }
                 }
             }
         }
