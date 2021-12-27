@@ -23,6 +23,9 @@ const MOD: usize = 1e9 as usize + 7;
 const N: usize = 20;
 const MAX_COMMAND_NUM: usize = 5_000;
 
+// TODO: もっと小さくても良さそう
+const REST_GRID_NUM_FOOTCUT: usize = 100;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Coord {
     x: isize,
@@ -424,8 +427,11 @@ fn main() {
 
                 st.do_command(&com, &input);
 
-                eprintln!("a = {}, b = {}", a, b);
-                eprintln!("rest_num: {}", st.rest_grid_num);
+                if st.rest_grid_num > REST_GRID_NUM_FOOTCUT {
+                    continue;
+                }
+
+                eprintln!("a = {}, b = {}, rest_num: {}", a, b, st.rest_grid_num);
 
                 // TSPフェーズ
                 let mut commands = vec![com];
@@ -490,6 +496,7 @@ fn main() {
                     .collect::<String>();
 
                 if repr.len() < ans.len() {
+                    eprintln!("a = {}, b = {}, updated", a, b);
                     ans = repr;
                 }
             }
